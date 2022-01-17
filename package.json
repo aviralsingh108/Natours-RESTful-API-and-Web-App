@@ -1,0 +1,25 @@
+{
+  "name": "natours",
+  "version": "1.0.0",
+  "description": "nodejs, express and mongodb",
+  "main": "app.js",
+  "scripts": {
+    "start": "nodemon server.js",
+    "start:prod": "NODE_ENV=production nodemon server.js",
+    "debug": "ndb server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "aviral singh",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^10.0.0",
+    "express": "^4.17.2",
+    "mongoose": "^6.1.4",
+    "morgan": "^1.10.0",
+    "validator": "^13.7.0"
+  },
+  "devDependencies": {
+    "ndb": "^1.1.5",
+    "prettier": "^1.19.1"
+  }
+}
