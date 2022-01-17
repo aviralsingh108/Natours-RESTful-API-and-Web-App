@@ -1,3 +1,4 @@
+const { promisify } = require('util');
 const jwt = require('jsonwebtoken');
 const User = require('./../models/userModel');
 const catchAsync = require('./../utils/catchAsync');
@@ -14,7 +15,8 @@ exports.signup = catchAsync(async (req, res, next) => {
     name: req.body.name,
     email: req.body.email,
     password: req.body.password,
-    passwordConfirm: req.body.passwordConfirm
+    passwordConfirm: req.body.passwordConfirm,
+    passwordChangedAt: req.body.passwordChangedAt
   });
 
   const token = signToken(newUser._id);
@@ -28,11 +30,10 @@ exports.signup = catchAsync(async (req, res, next) => {
   });
 });
 
-
 exports.login = catchAsync(async (req, res, next) => {
   const { email, password } = req.body;
 
-  //Check if email and password exists
+  //Check email and password
   if (!email || !password) {
     return next(
       new AppError('Please provide the email and password for the user', 400)
@@ -41,7 +42,6 @@ exports.login = catchAsync(async (req, res, next) => {
 
   //Check if user exists and password is correct
   const user = await User.findOne({ email }).select('+password');
-  console.log(password, user.password);
   if (!user || !(await user.correctPassword(password, user.password))) {
     return next(new AppError('Incorrect Email or Password', 401));
   }
@@ -52,4 +52,42 @@ exports.login = catchAsync(async (req, res, next) => {
     status: 'success',
     token
   });
+});
+
+exports.protect = catchAsync(async (req, res, next) => {
+  // Getting token and check if it's there
+  let token;
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith('Bearer')
+  ) {
+    token = req.headers.authorization.split(' ')[1];
+  }
+  if (!token) {
+    return next(
+      new AppError(`You are not logged in!, Please log in to get access.`, 401)
+    );
+  }
+  //Verification Token
+  const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
+
+  //Check if user still exists
+  const currentUser = await User.findById(decoded.id);
+  if (!currentUser) {
+    return next(
+      new AppError('The user belonging to this token does no longer exists'),
+      401
+    );
+  }
+
+  //Check if user changed password after the token was issued
+  if (currentUser.changedPasswordAfter(decoded.iat)) {
+    return next(
+      new AppError('User Recently changed password!. Please login again', 401)
+    );
+  }
+
+  // Grant Access to protected Route
+  req.user = currentUser;
+  next();
 });
