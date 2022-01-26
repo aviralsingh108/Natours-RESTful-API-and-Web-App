@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const { promisify } = require('util');
 const jwt = require('jsonwebtoken');
 const User = require('./../models/userModel');
@@ -122,8 +123,8 @@ exports.forgotPassword = catchAsync(async (req, res, next) => {
   )}/api/v1/users/resetPassword/${resetToken}`;
   const message = `Forgot your Password? Submit a Patch request with your new Password and Password Confirm to ${resetURL}.
   If you didn't forget your password, please ignore this email!`;
-  console.log('resetURL ',resetURL);
-  console.log('message ',message);
+  console.log('resetURL ', resetURL);
+  console.log('message ', message);
   try {
     await sendEmail({
       email: user.email,
@@ -140,8 +141,39 @@ exports.forgotPassword = catchAsync(async (req, res, next) => {
     user.passwordResetExpires = undefined;
     await user.save({ validateBeforeSave: false });
     return next(
-      new AppError('There was an error sending the email. Try again later!', 500)
+      new AppError(
+        'There was an error sending the email. Try again later!',
+        500
+      )
     );
   }
 });
-exports.resetPassword = (req, res, next) => {};
+
+exports.resetPassword = catchAsync(async (req, res, next) => {
+  //Get User based on the token
+  const hashedToken = crypto
+    .createHash('sha256')
+    .update(req.params.token)
+    .digest('hex');
+
+  const user = await User.findOne({
+    passwordResetToken: hashedToken,
+    passwordResetExpires: { $gt: Date.now() }
+  });
+  //If the token has not expired and there is user, set the new password
+  if (!user) {
+    return next(new AppError('Token is Invalid or has expired', 400));
+  }
+  user.password = req.body.password;
+  user.passwordConfirm = req.body.passwordConfirm;
+  user.passwordResetToken = undefined;
+  user.passwordResetExpires = undefined;
+  await user.save();
+  //Update changedPasswordAt property for the user
+  const token = signToken(user._id);
+  res.status(200).json({
+    status: 'success',
+    token
+  });
+  //Log the user in, send JWTk
+});
